@@ -1,0 +1,357 @@
+#!/bin/bash
+
+RELEASE_NAME=Processing
+RELEASE_COMMIT_ID=`git rev-parse HEAD`
+
+SRC_DIR=`pwd`/src
+LOG=install.log
+
+INSTALL_PREFIX=/opt/smart-terminal
+
+NUM_THREADS_ARG=""
+
+USAGE_MESSAGE="usage: install [-d|--install-dir INSTALL_DIR] [-j|--num-threads NUM_THREADS] [--no-uninstall] [-l|--log LOG_FILE] [-h|--help]"
+HELP_MESSAGE="  INSTALL_DIR: specify the directory to install the software to. The default is '/usr/local/lib'.\n
+ NUM_THREADS: specify the number of threads to build the software with.\n
+ LOG_FILE: specify the log file name. The default is 'install.log'.\n"
+
+IFS=$'\n'
+
+# parse command line arguments
+getopt -o cdhjl --long log:,num-threads:,install-dir:,no-uninstall,help -n 'install' -Q -- "$@"
+while true
+do
+    case $1 in
+        -l|--log)
+            LOG=$2
+            shift 2;;
+        -j|--num-threads)
+            test $2 -eq 0 2>/dev/null
+            if [ ! $? -eq 2 ]&& [ $2 -gt 0 ]
+            then
+                NUM_THREADS_ARG="-j$2"
+            else
+                echo "NUM_THREADS must be a positive integer!" > /dev/stderr
+                exit 1
+            fi
+            shift 2;;
+        -d|--install-dir)
+            INSTALL_PREFIX=$2
+            shift 2;;
+        --no-uninstall)
+            shift;;
+        --)
+            break;;
+        "")
+            break;;
+        -h|--help|*)
+            l       echo $USAGE_MESSAGE
+            echo -e $HELP_MESSAGE
+            exit 1;;
+    esac
+done
+
+if [ ! -d $INSTALL_PREFIX ]
+then
+	mkdir -p $INSTALL_PREFIX
+	if [ $? -ne 0 ]; then
+		exit 1
+	fi
+fi
+
+LEIN_LIBS="
+Korma.git
+clojure-inetaddress.git
+smart-terminal-db.git"
+
+LEIN_EXECS="
+event-scheduler.git
+load-schedule-config.git
+smart-terminal-web-server.git"
+
+CMAKE_REPOS="
+ccore-utils.git
+log-checker.git
+io-module.git
+antenna-comms.git
+session-manager.git
+smart-terminal-launcher.git"
+
+WEB_SERVER_REPO="smart-terminal-ui.git"
+
+function lein_lib_install {
+    (
+        RET=0
+		tmp_file=`mktemp` &&
+			chmod 777 $tmp_file &&
+			echo ". ~/.profile && cd $1 && lein deps && lein uberjar" >> $tmp_file &&
+			sudo -u `logname` bash -C $tmp_file
+        if [ $? -ne 0 ]
+        then
+            RET=1
+        fi
+		rm -f $tmp_file
+        return $RET
+    )
+}
+
+function lein_exec_install {
+    (
+        RET=0
+        cd $1
+        sh install $2
+        if [ $? -ne 0 ]
+        then
+            RET=1
+        fi
+        return $RET
+    )
+}
+
+function cmake_clean {
+    (
+        RET=0
+        # clean out build directory
+        cd $1
+        if [ -a =build ]
+        then
+            rm -rf =build
+            if [ $? -ne 0 ]
+            then
+                RET=1
+            fi
+        fi
+        return $RET
+    )
+}
+
+function cmake_configure {
+    (
+        RET=0
+        ## set up build directory
+        cd $1
+        mkdir -p =build
+        cd =build
+        ## configure
+        cmake ../ -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_INSTALL_PREFIX=$2
+        if [ $? -ne 0 ]
+        then
+            RET=1
+        fi
+        ## change privileges on build directory
+        if [ $SUDO_USER ]
+        then
+            chown -R $SUDO_USER:$SUDO_USER .
+        fi
+        return $RET
+    )
+}
+
+function cmake_build {
+    (
+        RET=0
+        ## set up build directory
+        cd $1
+        mkdir -p =build
+        cd =build
+        ## build
+        make $NUM_THREADS_ARG
+        if [ $? -ne 0 ]
+        then
+            RET=1
+        fi
+        ## change privileges on build directory
+        if [ $SUDO_USER ]
+        then
+            chown -R $SUDO_USER:$SUDO_USER .
+        fi
+        return $RET
+    )
+}
+
+function cmake_install {
+    (
+        RET=0
+        ## set up build directory
+        cd $1
+        mkdir -p =build
+        cd =build
+        ## install
+        make install
+        if [ $? -ne 0 ]
+        then
+            RET=1
+        fi
+        ## change privileges on build directory
+        if [ $SUDO_USER ]
+        then
+            chown -R $SUDO_USER:$SUDO_USER .
+        fi
+        return $RET
+    )
+}
+
+
+for t in CLEAN_FUNC CONFIGURE_FUNC BUILD_FUNC INSTALL_FUNC
+do
+    declare -A $t
+done
+
+for R in $CMAKE_REPOS
+do
+    CLEAN_FUNC[${R}]=cmake_clean
+    CONFIGURE_FUNC[${R}]=cmake_configure
+    BUILD_FUNC[${R}]=cmake_build
+    INSTALL_FUNC[${R}]=cmake_install
+done
+
+
+# HELPER FUNCTIONS #
+
+function error_exit {
+    echo $1 > /dev/stderr
+    exit $2
+}
+
+function ask_proceed {
+    while true; do
+        read yn
+        case $yn in
+            [Yy]* ) break;;
+            [Nn]* ) exit 5;;
+            * ) echo "Please answer yes or no.";;
+        esac
+    done
+}
+
+# CHECK STATE OF INSTALLATION #
+echo "checking the status of the source files..."
+MODIFICATIONS=`git diff HEAD --name-status`
+if [ "$MODIFICATIONS" ]
+then
+    # todo: no need to output the submodule refs themselves (not files!)
+    #SUBMODULES=`git submodule foreach --recursive --quiet 'echo $path'`
+    SUBMODULE_MODIFICATIONS=`git submodule foreach --recursive --quiet '
+        CHANGED=\`git diff HEAD --name-status\`
+        if [ "$CHANGED" ]
+        then
+        echo $CHANGED | while read -r line
+            do
+                echo "${line%% *}\t$path/${line##* }"
+            done
+        fi
+    '`
+    MODIFICATIONS="$MODIFICATIONS
+$SUBMODULE_MODIFICATIONS"
+    echo "The following changes to source files have been made which may alter the installation:"
+    echo -e "$MODIFICATIONS"
+    echo -e "\nProceed with the installation anyway? [y/n]"
+    ask_proceed
+else
+    echo "checking state of source successful."
+fi
+
+# INSTALLATION #
+echo "" > $LOG
+chmod +rw $LOG
+
+for R in $LEIN_LIBS
+do
+	echo "Installing Repository $R..."
+    echo "################## Installing Repository $R ######################
+
+    " &>> $LOG
+    lein_lib_install $SRC_DIR/${R} &>> $LOG
+    if [ $? -eq 0 ]
+    then
+        echo " -- Installation successful"
+    fi
+done
+
+for R in $LEIN_EXECS
+do
+	echo "Installing Repository $R..."
+    echo "################## Installing Repository $R ######################
+
+    " &>> $LOG
+    lein_exec_install $SRC_DIR/${R} $INSTALL_PREFIX  &>> $LOG
+    if [ $? -eq 0 ]
+    then
+        echo " -- Installation successful"
+    fi
+done
+
+# configure, rebuild, and install to proper directory
+for R in $CMAKE_REPOS
+do
+    echo "Repository $R"
+    echo "##################   REPOSITORY $R ######################
+
+    " &>> $LOG
+
+    ${CLEAN_FUNC[$R]} $SRC_DIR/${R} $INSTALL_PREFIX &>> $LOG
+    if [ $? -eq 0 ]
+    then
+        echo "  -- Clean successful."
+    else
+        error_exit "  -- Clean failed!" 1
+    fi
+    ${CONFIGURE_FUNC[$R]} $SRC_DIR/${R} $INSTALL_PREFIX &>> $LOG
+    if [ $? -eq 0 ]
+    then
+        echo "  -- Configuration successful."
+    else
+        error_exit "  -- Configuration failed!" 1
+    fi
+    ${BUILD_FUNC[$R]} $SRC_DIR/${R} &>> $LOG
+    if [ $? -eq 0 ]
+    then
+        echo "  -- Build successful."
+    else
+        error_exit "  -- Build failed!" 1
+    fi
+    ${INSTALL_FUNC[$R]} $SRC_DIR/${R} &>> $LOG
+    if [ $? -eq 0 ]
+    then
+        echo "  -- Installation to $INSTALL_PREFIX successful."
+    else
+        error_exit "  -- Installation failed!" 1
+    fi
+done
+
+# install web server stuff
+echo "Repository $WEB_SERVER_REPO"
+echo "##################   REPOSITORY $R ######################
+
+    " &>> $LOG
+lein_exec_install $SRC_DIR/${WEB_SERVER_REPO} $INSTALL_PREFIX &>> $LOG ; # just need to run the install script within the repo, same as a lein exec
+if [ $? -eq 0 ]
+then
+	echo "  -- Installation successful"
+else
+	error_exit "  -- Installation failed!" 1
+fi
+
+# copy icons
+echo "Installing Icons..."
+mkdir -p $INSTALL_PREFIX/icons &>/dev/null && cp -r icons/* $INSTALL_PREFIX/icons &>/dev/null
+if [ $? -ne 0 ]
+then
+	error_exit "Error encountered installing icons" 1
+else 
+	echo "Icons installed"
+	# install launcher on desktop for smart-terminal-launcher
+	launcher_file="$HOME/Desktop/Smart Terminal Launcher.desktop"
+	echo "[Desktop Entry]" > $launcher_file
+	echo "Type=Application" >> $launcher_file
+	echo "Terminal=false" >> $launcher_file
+	echo "Icon[en_CA]=/opt/smart-terminal/icons/launcher.png" >> $launcher_file
+	echo "Name[en_CA]=Smart Terminal Launcher" >> $launcher_file
+	echo "Exec=/opt/smart-terminal/bin/smart-terminal-launcher" >> $launcher_file
+	echo "Name=Smart Terminal Launcher" >> $launcher_file
+	echo "Icon=/opt/smart-terminal/icons/launcher.png" >> $launcher_file
+	chown `logname`:`logname` "$launcher_file"
+fi
+
+echo "installation complete!"
+exit 0

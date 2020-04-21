@@ -1,0 +1,14 @@
+=build*
+Makefile.in
+autom4te.cache
+aclocal.m4
+configure
+*.swp
+*~
+libltdl
+config.guess
+config.sub
+ltmain.sh
+scripts/config_local.tcl
+pgslog*
+install.log

@@ -1,0 +1,45 @@
+[submodule "src/antenna-comms.git"]
+	path = src/antenna-comms.git
+	url = ./src/antenna-comms.git
+[submodule "src/ccore-utils.git"]
+	path = src/ccore-utils.git
+	url = ./src/ccore-utils.git
+[submodule "src/clojure-inetaddress.git"]
+	path = src/clojure-inetaddress.git
+	url = ./src/clojure-inetaddress.git
+[submodule "src/event-scheduler.git"]
+	path = src/event-scheduler.git
+	url = ./src/event-scheduler.git
+[submodule "src/install.git"]
+	path = src/install.git
+	url = ./src/install.git
+[submodule "src/io-module.git"]
+	path = src/io-module.git
+	url = ./src/io-module.git
+[submodule "src/Korma.git"]
+	path = src/Korma.git
+	url = ./src/Korma.git
+[submodule "src/load-schedule-config.git"]
+	path = src/load-schedule-config.git
+	url = ./src/load-schedule-config.git
+[submodule "src/session-manager.git"]
+	path = src/session-manager.git
+	url = ./src/session-manager.git
+[submodule "src/smart-terminal-db.git"]
+	path = src/smart-terminal-db.git
+	url = ./src/smart-terminal-db.git
+[submodule "src/smart-terminal-ui.git"]
+	path = src/smart-terminal-ui.git
+	url = ./src/smart-terminal-ui.git
+[submodule "src/smart-terminal-web-server.git"]
+	path = src/smart-terminal-web-server.git
+	url = ./src/smart-terminal-web-server.git
+[submodule "src/smart-terminal-launcher.git"]
+	path = src/smart-terminal-launcher.git
+	url = ./src/smart-terminal-launcher.git
+[submodule "src/log-checker.git"]
+	path = src/log-checker.git
+	url = ./src/log-checker.git
+[submodule "src/smart-terminal-db-migrations.git"]
+	path = src/smart-terminal-db-migrations.git
+	url = ./src/smart-terminal-db-migrations.git

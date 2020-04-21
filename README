@@ -1,0 +1,47 @@
+antenna-comms.git
+TCL-based interface to the Comtech antenna system. Is a command line program.
+
+ccore-utils.git
+A collection of common utilities written in TCL.
+
+event-scheduler.git
+The scheduler. Written in clojure.
+
+install.git
+Installation and configuration scripts.
+
+io-module.git
+TCL-based interface to the X332 digital IO controller.
+
+load-schedule-config.git
+A command-line executable that reads the database configuration given in a YAML file and loads it into the database. Written in clojure.
+
+log-checker.git
+A command-line executable that, when run, checks log files for any instance of a log with a level at or above a specified level, and then emails the message and the logs to a number of recipients. Written in TCL. This executable is scheduled to run every 30 minutes with cron. 
+
+session-manager.git
+A command-line program that monitors the schedule in the database and spawns a session (a child process) to do the 'work' during an overpass. Written in TCL.
+
+smart-terminal-db.git
+A clojure library for working with the smartterminal postgresql database.
+
+smart-terminal-db-migrations.git
+Where migrations to the database are maintained. Migrations are tracked using the flyway tool (URL: https://flywaydb.org/). Migrations are written in postgresql-flavoured SQL.
+
+smart-terminal-launcher.git
+A thin GUI wrapper written to control the command-line processes. Written in TCL with the TK GUI toolkit.
+
+smart-terminal-ui.git
+The smart-terminal browser-based client code. Written in vanilla javascript with bootstrap.
+
+smart-terminal-web-server.git
+The smart-terminal web server, which the client communicates with. Written in clojure.
+
+
+------ THIRD PARTY LIBS ------
+
+clojure-inetaddress.git
+A clojure wrapper for java.net.InetAddress. (URL: https://github.com/vitorsvieira/clojure-inetaddress)
+
+Korma.git
+An SQL library for clojure. Used to provide an interface to postgresql. Cloned from github rather than using the latest JAR file from maven (or lein) because I needed the latest version. (URL: https://github.com/korma/Korma)
